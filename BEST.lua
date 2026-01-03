@@ -1,7 +1,8 @@
 -- проверяем вайтлист
 local hwid = game:GetService("RbxAnalyticsService"):GetClientId()
 local whitelist = {
-    "C017884D-908B-4482-ACDB-2E4A3C1476CF"
+    "C017884D-908B-4482-ACDB-2E4A3C1476CF",
+    "415F92CD-908A-464C-9123-9CFD3ECE330E"
 }
 
 local valid = false
