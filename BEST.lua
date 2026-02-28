@@ -72,10 +72,6 @@ pcall(function()
 end)
 
 pcall(function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/nazarkus/rpgAircraft/main/easy.lua"))()
-end)
-
-pcall(function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/nazarkus/rpg/main/easy.lua"))()
 end)
 
