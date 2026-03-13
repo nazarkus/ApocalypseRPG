@@ -11,6 +11,7 @@ local whitelist = {
     {CID = "415F92CD-908A-464C-9123-9CFD3ECE330E",  UID = ""},
     {CID = "ADC447EF-9C8A-4A4E-966C-220FE03C8F4F",  UID = ""},
     {CID = "5D2C1A34-B6E1-4A29-A731-1295328B6A22",  UID = ""},
+    {CID = "84E50597-CA26-44B2-8AF3-996405490E4C",  UID = ""},
 }
 
 local valid = false
