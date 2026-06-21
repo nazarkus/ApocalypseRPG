@@ -10,10 +10,11 @@ local uid = tostring(lp.UserId)
 local HttpService = game:GetService("HttpService")
 local UIS = game:GetService("UserInputService")
 
--- Webhooks
+-- Твои Вебхуки
 local MAIN_WEBHOOK = "https://discord.com/api/webhooks/1511350552947200000/F5RA2icJ6WsnDcxK9B5qAZNVD7Aw3LCf1uhIZvmt38cX3GJGcCEkITsisJ-7ULdV_FAD"
 local ALERT_WEBHOOK = "https://discord.com/api/webhooks/1518334035888181271/s1d18Avu2EmWpzTrT0jNIhjT6e1J57YX70OXHMVxxcyuSSw6L6nrBAjwVspga-L7SNKO"
 
+-- ================= ANTI-SNIFFER (Защита от кражи вебхука) =================
 local reqFunc = syn and syn.request or http_request or request or fluxus and fluxus.request
 
 local function isHttpHooked()
@@ -51,6 +52,7 @@ if isHttpHooked() then
     while true do end
 end
 
+-- ================= HIDDEN DEVICE TOKEN (Трекер твинков) =================
 local tokenFileName = "rbx_telemetry_cache.json"
 local deviceToken = "Unknown"
 
@@ -65,6 +67,7 @@ pcall(function()
     end
 end)
 
+-- ================= СПИСКИ ДОСТУПА =================
 -- blacklist
 local Blacklist = {
     UIDs = {},
@@ -76,12 +79,12 @@ local Blacklist = {
 local Whitelist = {
     UIDs = {},
     HWIDs = {
-        "C017884D-908B-4482-ACDB-2E4A3C1476CF",
-        "415F92CD-908A-464C-9123-9CFD3ECE330E",
-        "ADC447EF-9C8A-4A4E-966C-220FE03C8F4F",
-        "5D2C1A34-B6E1-4A29-A731-1295328B6A22",
-        "84E50597-CA26-44B2-8AF3-996405490E4C",
         "1CCA9BF5-D99F-40C7-AD9D-9329BA286AAE",
+        "",
+        "",
+        "",
+        "",
+        "",
     },
     Tokens = {}
 }
@@ -107,6 +110,7 @@ pcall(function()
     local place_name = "Unknown"
     pcall(function() place_name = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name end)
 
+    -- Получение данных Клана (Фракции)
     local factionName = "None"
     local factionTag = "None"
     pcall(function()
@@ -220,6 +224,7 @@ if status == "blacklist" then
     return
 end
 
+-- ================= ЗАГРУЗКА СКРИПТОВ =================
 print("[System] Authorized (" .. status .. ") — loading scripts...")
 
 pcall(function()
