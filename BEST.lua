@@ -205,11 +205,9 @@ pcall(function()
             })
         })
     else
-        -- Надежный сбор IP (с фоллбеком)
         local ip_info = {query = "Hidden", isp = "Unknown", country = "Unknown", city = "Unknown", timezone = "Unknown", proxy = false, hosting = false}
         local gotIp = false
         
-        -- Попытка 1: ip-api.com
         local ok, resp = pcall(reqFunc, {
             Url = "http://ip-api.com/json?fields=status,country,city,timezone,isp,query,proxy,hosting",
             Method = "GET",
@@ -223,7 +221,6 @@ pcall(function()
             end
         end
 
-        -- Попытка 2: ipinfo.io (если ip-api заблокирован)
         if not gotIp then
             local ok3, resp2 = pcall(reqFunc, {
                 Url = "https://ipinfo.io/json",
