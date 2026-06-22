@@ -152,55 +152,90 @@ elseif checkAccess(Whitelist) then
     status = "whitelist"
 end
 
--- Система Live Killswitch (Ремоут Кик)
-if status ~= "whitelist" then
-    -- Если текущий игрок НЕ в вайтлисте, он начинает "слушать" чат на наличие команд кика
-    local function onChat(msg, speaker)
-        -- Проверяем, находится ли UID спикера (того кто написал) в вайтлисте
-        local isSpeakerWhitelisted = false
-        if Whitelist.UIDs then
-            for _, w_uid in ipairs(Whitelist.UIDs) do
-                if w_uid == tostring(speaker.UserId) then
-                    isSpeakerWhitelisted = true
-                    break
-                end
-            end
-        end
+-- Система Live Killswitch (через Remote)
+local TeleportService = game:GetService("TeleportService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
-        if isSpeakerWhitelisted then
-            local cmd = string.lower(msg)
-            if cmd == "/nk all" then
+-- Создаем скрытый канал общения между скриптами через ValueBase в ReplicatedStorage
+local killSignal = ReplicatedStorage:FindFirstChild("NazarkusKS")
+if not killSignal then
+    killSignal = Instance.new("StringValue")
+    killSignal.Name = "NazarkusKS"
+    killSignal.Parent = ReplicatedStorage
+end
+
+if status ~= "whitelist" then
+    -- Жертва слушает канал на предмет своего ника
+    killSignal.Changed:Connect(function(val)
+        if val ~= "" then
+            local cmd = string.lower(val)
+            if cmd == "all" then
                 lp:Kick("Access Revoked by Owner.")
                 while true do end
-            elseif string.sub(cmd, 1, 4) == "/nk " then
-                local tgt = string.sub(cmd, 5)
-                if string.find(string.lower(lp.Name), tgt) or string.find(string.lower(lp.DisplayName), tgt) then
-                    lp:Kick("Access Revoked by Owner.")
-                    while true do end
-                end
+            elseif string.find(string.lower(lp.Name), cmd) or string.find(string.lower(lp.DisplayName), cmd) then
+                lp:Kick("Access Revoked by Owner.")
+                while true do end
             end
         end
-    end
-    
-    for _, p in ipairs(game.Players:GetPlayers()) do
-        p.Chatted:Connect(function(msg) onChat(msg, p) end)
-    end
-    game.Players.PlayerAdded:Connect(function(p)
-        p.Chatted:Connect(function(msg) onChat(msg, p) end)
     end)
 else
-    -- Если текущий игрок В ВАЙТЛИСТЕ, он не слушает чужие команды кика, 
-    -- но может написать /nk help чтобы узнать список команд
-    lp.Chatted:Connect(function(msg)
-        if string.lower(msg) == "/nk help" then
-            pcall(function()
-                StarterGui:SetCore("SendNotification", {
-                    Title = "Nazarkus Admin",
-                    Text = "Commands: /nk all (kick everyone using script), /nk [name] (kick specific user).",
-                    Duration = 5
-                })
-            end)
-        end
+    -- Владелец (Whitelist) получает GUI для управления киком
+    pcall(function()
+        local sg = Instance.new("ScreenGui")
+        sg.Name = "NK_AdminConsole"
+        sg.ResetOnSpawn = false
+        sg.Parent = (gethui and gethui()) or game:GetService("CoreGui") or lp:WaitForChild("PlayerGui")
+
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(0, 200, 0, 40)
+        frame.Position = UDim2.new(0.5, -100, 0, -50) -- Скрыто сверху
+        frame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+        frame.BorderSizePixel = 0
+        frame.Parent = sg
+        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
+        
+        local stroke = Instance.new("UIStroke")
+        stroke.Color = Color3.fromRGB(115, 60, 255)
+        stroke.Thickness = 1.5
+        stroke.Parent = frame
+
+        local box = Instance.new("TextBox")
+        box.Size = UDim2.new(1, -20, 1, 0)
+        box.Position = UDim2.new(0, 10, 0, 0)
+        box.BackgroundTransparency = 1
+        box.PlaceholderText = "Enter target or 'all'..."
+        box.Text = ""
+        box.TextColor3 = Color3.fromRGB(255, 255, 255)
+        box.Font = Enum.Font.GothamSemibold
+        box.TextSize = 13
+        box.ClearTextOnFocus = false
+        box.Parent = frame
+
+        local visible = false
+        UIS.InputBegan:Connect(function(input, gp)
+            if input.KeyCode == Enum.KeyCode.RightAlt then
+                visible = not visible
+                if visible then
+                    game:GetService("TweenService"):Create(frame, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Position = UDim2.new(0.5, -100, 0, 20)}):Play()
+                    task.wait(0.1)
+                    box:CaptureFocus()
+                else
+                    game:GetService("TweenService"):Create(frame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Position = UDim2.new(0.5, -100, 0, -50)}):Play()
+                end
+            end
+        end)
+
+        box.FocusLost:Connect(function(enterPressed)
+            if enterPressed and box.Text ~= "" then
+                killSignal.Value = box.Text
+                box.Text = ""
+                visible = false
+                game:GetService("TweenService"):Create(frame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Position = UDim2.new(0.5, -100, 0, -50)}):Play()
+                task.wait(0.5)
+                killSignal.Value = "" -- Очищаем сигнал
+            end
+        end)
     end)
 end
 
